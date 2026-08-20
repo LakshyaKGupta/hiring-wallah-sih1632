@@ -100,6 +100,23 @@
   --ease-kore-fast: cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
+/* ── Utility: hide scrollbars ── */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Utility: line clamp ── */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ── Semantic type hierarchy ── */
 .type-display {
   font-family: var(--font-display);
@@ -367,68 +384,54 @@ body {
 }
 
 .section-kicker-glow {
-  animation: section-kicker-glow 6.8s ease-in-out infinite;
+  transform: translate3d(0, 0, 0);
 }
 
 .section-title-glow {
-  animation: section-title-glow 8.6s ease-in-out infinite;
+  transform: translate3d(0, 0, 0);
 }
 
 .section-copy-drift {
-  animation: section-copy-drift 9.4s ease-in-out infinite;
+  transform: translate3d(0, 0, 0);
 }
 
 .section-glow-seam {
-  animation: section-glow-seam 7.5s ease-in-out infinite;
+  transform: translate3d(0, 0, 0);
 }
 
-/* Floating icon drift */
+/* Floating icon drift — pure GPU transform */
 .floating-icon-drift {
   animation: floating-icon-drift 20s ease-in-out infinite;
+  will-change: transform;
 }
 
 .outcome-headline-motion {
-  animation: outcome-headline-motion 9s ease-in-out infinite;
+  transform: translate3d(0, 0, 0);
 }
 
 .outcome-copy-motion {
-  animation: outcome-copy-motion 10s ease-in-out infinite;
-}
-
-.outcome-ribbon::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  width: 45%;
-  background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.12), transparent);
-  animation: ribbon-scan 4.8s var(--ease-out) infinite;
-  transform: translateX(-120%);
+  transform: translate3d(0, 0, 0);
 }
 
 /* Base float — pure Y so it composes safely with translate(-50%,-50%) */
 @keyframes hero-float-y {
   0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-14px); }
+  50%       { transform: translateY(-10px); }
 }
 
 @keyframes hero-node-float {
   0%, 100% { transform: var(--node-transform, translate(-50%, -50%)) translateY(0px); }
-  50%       { transform: var(--node-transform, translate(-50%, -50%)) translateY(-14px); }
+  50%       { transform: var(--node-transform, translate(-50%, -50%)) translateY(-10px); }
 }
 
 @keyframes hero-score-cluster-float {
   0%, 100% { transform: var(--score-transform, translate(-50%, -50%)) translateY(0px); }
-  50%       { transform: var(--score-transform, translate(-50%, -50%)) translateY(-10px); }
+  50%       { transform: var(--score-transform, translate(-50%, -50%)) translateY(-8px); }
 }
 
 @keyframes hero-copy-drift {
   0%, 100% { transform: translate3d(0, 0, 0); }
-  50%       { transform: translate3d(0, -4px, 0); }
-}
-
-@keyframes hero-score-core {
-  0%, 100% { transform: translate3d(-50%, -50%, 0) scale(1); }
-  50%       { transform: translate3d(-50%, calc(-50% - 12px), 0) scale(1.018); }
+  50%       { transform: translate3d(0, -3px, 0); }
 }
 
 @keyframes hero-orbit-spin {
@@ -454,72 +457,12 @@ body {
   }
 }
 
-@keyframes section-kicker-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 rgba(37, 99, 235, 0);
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    box-shadow: 0 0 28px rgba(37, 99, 235, 0.14);
-    transform: translate3d(0, -2px, 0);
-  }
-}
-
-@keyframes section-title-glow {
-  0%, 100% {
-    text-shadow: 0 0 0 rgba(37, 99, 235, 0);
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    text-shadow: 0 10px 38px rgba(37, 99, 235, 0.12);
-    transform: translate3d(0, -4px, 0);
-  }
-}
-
-@keyframes section-copy-drift {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(0, 3px, 0);
-  }
-}
-
-@keyframes section-glow-seam {
-  0%, 100% {
-    opacity: 0.35;
-    transform: translate3d(-8%, 0, 0) scaleX(0.94);
-  }
-  50% {
-    opacity: 0.82;
-    transform: translate3d(8%, 0, 0) scaleX(1.04);
-  }
-}
-
 @keyframes floating-icon-drift {
   0%, 100% {
     transform: translate3d(0, 0, 0) rotate(0deg) scale(var(--float-scale, 1));
   }
   50% {
-    transform: translate3d(var(--float-x, 20px), var(--float-y, -24px), 0) rotate(var(--float-rotate, 12deg)) scale(var(--float-scale, 1));
-  }
-}
-
-@keyframes outcome-headline-motion {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(6px, -5px, 0);
-  }
-}
-
-@keyframes outcome-copy-motion {
-  0%, 100% {
-    transform: translate3d(0, 0, 0);
-  }
-  50% {
-    transform: translate3d(-4px, 4px, 0);
+    transform: translate3d(var(--float-x, 14px), var(--float-y, -18px), 0) rotate(var(--float-rotate, 8deg)) scale(var(--float-scale, 1));
   }
 }
 

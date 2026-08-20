@@ -5,6 +5,11 @@ Thumbs.db
 # IDEs
 .idea/
 .vscode/
+.code-intel/
+
+# Test & Browser Artifacts
+.playwright-mcp/
+.pytest_cache/
 
 # Node/Frontend
 node_modules/
@@ -27,9 +32,6 @@ ENV/
 env/
 .env
 site-packages/
-
-# Supabase
-.supabase/
 
 # Database files
 *.db

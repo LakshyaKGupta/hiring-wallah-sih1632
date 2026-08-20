@@ -17,15 +17,16 @@ import {
   LogOut,
   ChevronDown,
   LayoutDashboard,
+  Zap,
+  Cpu,
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 
 const navLinks = [
-  { href: '/', label: 'Home',       icon: Home,          sectionId: 'hero',         match: (p: string) => p === '/' },
-  { href: '/', label: 'Outcomes',   icon: Sparkles,      sectionId: 'features',     match: () => false },
-  { href: '/', label: 'Workspaces', icon: ClipboardCheck, sectionId: 'workspaces',  match: () => false },
-  { href: '/', label: 'Process',    icon: Network,       sectionId: 'how-it-works', match: () => false },
-  { href: '/', label: 'Start',      icon: FileText,      sectionId: 'cta',          match: () => false },
+  { href: '/#hero', label: 'Home', icon: Home, sectionId: 'hero', match: (p: string) => p === '/' },
+  { href: '/#features', label: 'Features', icon: Zap, sectionId: 'features', match: (p: string) => p === '/' },
+  { href: '/#workspaces', label: 'Workspaces', icon: Briefcase, sectionId: 'workspaces', match: (p: string) => p === '/' },
+  { href: '/#how-it-works', label: 'How It Works', icon: Cpu, sectionId: 'how-it-works', match: (p: string) => p === '/' },
 ]
 
 const sectionIds = navLinks.map((item) => item.sectionId)
@@ -37,14 +38,19 @@ function NavLink({
   icon: React.ComponentType<{ className?: string }>
   isActive: boolean; onActivate?: (id: string) => void; className?: string
 }) {
+  const pathname = usePathname()
+
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    const el = document.getElementById(sectionId)
-    if (!el) return
-    e.preventDefault()
-    onActivate?.(sectionId)
-    window.history.replaceState(null, '', window.location.pathname)
-    const top = Math.max(0, el.offsetTop - 64)
-    window.scrollTo({ top, behavior: 'smooth' })
+    if (pathname === '/') {
+      const el = document.getElementById(sectionId)
+      if (el) {
+        e.preventDefault()
+        onActivate?.(sectionId)
+        window.history.replaceState(null, '', window.location.pathname)
+        const top = Math.max(0, el.offsetTop - 64)
+        window.scrollTo({ top, behavior: 'smooth' })
+      }
+    }
   }
 
   return (
@@ -166,7 +172,6 @@ function NavbarContent() {
   const mode = searchParams?.get('mode')
   const isAuthPage = pathname === '/auth'
   const isDashboard = pathname?.startsWith('/recruiter') || pathname?.startsWith('/candidate')
-  const isWorkspaceHome = pathname === '/recruiter' || pathname === '/candidate'
   const [activeSection, setActiveSection] = useState('hero')
   const { user, loading, signOut } = useAuth()
 
@@ -192,7 +197,7 @@ function NavbarContent() {
     return () => { window.cancelAnimationFrame(frame); window.removeEventListener('scroll', handleScroll) }
   }, [isDashboard])
 
-  if (isWorkspaceHome) return null
+  if (isDashboard) return null
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border-subtle bg-bg-surface/75 backdrop-blur-md">
@@ -279,13 +284,13 @@ function NavbarContent() {
                 </Link>
               </motion.div>
 
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}>
+              <motion.div whileHover={{ scale: 1.04, y: -1 }} whileTap={{ scale: 0.96 }}>
                 <Link
                   href="/auth?mode=signup"
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-xs font-semibold font-bold transition-all duration-200 ${
+                  className={`px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all duration-200 ${
                     isAuthPage && mode === 'signup'
-                      ? 'bg-gray-800 !text-white border border-gray-900'
-                      : 'bg-gray-900 hover:bg-gray-800 !text-white border border-gray-900 shadow-sm'
+                      ? 'bg-violet-900 !text-white border border-violet-950 shadow-sm'
+                      : 'bg-violet-900 hover:bg-violet-800 !text-white border border-violet-950 shadow-sm shadow-violet-900/20'
                   }`}
                 >
                   <UserPlus className="w-3.5 h-3.5" />

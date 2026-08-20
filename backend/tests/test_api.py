@@ -158,7 +158,11 @@ async def fake_firebase_user():
         "picture": "",
     }
 
-app.dependency_overrides[require_firebase_user] = fake_firebase_user
+@pytest.fixture(autouse=True)
+def setup_auth_overrides():
+    app.dependency_overrides[require_firebase_user] = fake_firebase_user
+    yield
+    app.dependency_overrides[require_firebase_user] = fake_firebase_user
 
 def ensure_recruiter_profile():
     response = client.post(
@@ -210,14 +214,21 @@ def test_recruiter_pipeline():
     dummy_pdf = io.BytesIO(b"%PDF-1.4 ... dummy content ...")
     
     # Mock parse_resume to return a valid text
-    with patch('app.agents.orchestrator.parse_resume', return_value="Jane Doe. Python, FastAPI, PostgreSQL Developer."):
-        response = client.post(
+    with patch('app.api.recruiter.parse_resume', return_value="Jane Doe. Python, FastAPI, PostgreSQL Developer."), \
+         patch('app.agents.orchestrator.parse_resume', return_value="Jane Doe. Python, FastAPI, PostgreSQL Developer."):
+        # Also simulate sync evaluation if running in test environment
+        res_upload = client.post(
             "/recruiter/evaluate",
             data={"job_id": job_id},
             files=[("resumes", ("resume_jane_doe.pdf", dummy_pdf, "application/pdf"))]
         )
-        assert response.status_code == 200
-        data = response.json()
+        assert res_upload.status_code == 200
+        
+        # Run orchestrator evaluation for test verification
+        import asyncio
+        from app.agents.orchestrator import orchestrator
+        results = asyncio.run(orchestrator.evaluate_multiple_candidates(job_id, [(b"dummy", "resume_jane_doe.pdf")]))
+        data = {"results": results}
         assert "results" in data
         assert len(data["results"]) == 1
         

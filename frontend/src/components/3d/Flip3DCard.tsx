@@ -138,7 +138,7 @@ export function Feature3DCardSection({ title }: Feature3DCardSectionProps) {
       title: 'Consensus Ledger',
       subtitle: 'Immutable Audit Trail',
       frontIcon: 'ledger',
-      backContent: 'COMMITTEE: 6/6 agents voted. Consensus reached. Hash signed & verified.',
+      backContent: 'COMMITTEE: 6/6 agents voted. Consensus reached. SHA-256 fingerprinted & verified.',
       color: '#10A45E',
     },
   ]

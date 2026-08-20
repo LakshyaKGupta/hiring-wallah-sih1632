@@ -32,9 +32,11 @@ function GoogleLogo({ size = 20 }: { size?: number }) {
 function RolePickerModal({
   onSelect,
   loading,
+  notice,
 }: {
   onSelect: (role: 'recruiter' | 'candidate') => void
   loading: boolean
+  notice?: string
 }) {
   return (
     <motion.div
@@ -69,7 +71,7 @@ function RolePickerModal({
             </div>
             <div>
               <div className="font-extrabold text-slate-950 text-sm">I&apos;m a Recruiter</div>
-              <div className="text-xs text-slate-500 mt-0.5 font-medium">Post jobs, evaluate candidates, get signed reports</div>
+              <div className="text-xs text-slate-500 mt-0.5 font-medium">Post jobs, evaluate candidates, get verified audit reports</div>
             </div>
             <ArrowRight className="w-4 h-4 text-slate-300 ml-auto group-hover:text-slate-950 group-hover:translate-x-1 transition-all" />
           </button>
@@ -89,6 +91,12 @@ function RolePickerModal({
             <ArrowRight className="w-4 h-4 text-slate-300 ml-auto group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
           </button>
         </div>
+
+        {notice && (
+          <div className="mt-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm font-semibold border border-red-100 text-center">
+            {notice}
+          </div>
+        )}
 
         {loading && (
           <div className="flex items-center justify-center gap-2 mt-6 text-slate-500 text-sm">
@@ -142,16 +150,13 @@ function AuthForm() {
 
   /* ── Google Sign-In ── */
   const handleGoogleSignIn = async () => {
+    const preferredRole = activeTab === 'signup' ? role : undefined
+    
     setGoogleLoading(true)
     setAuthNotice('')
+    
     try {
-      const preferredRole = activeTab === 'signup' ? role : undefined
-      const { role: storedRole } = await signInWithGoogle(preferredRole)
-      if (!storedRole) {
-        setRoleModalOpen(true)
-      } else {
-        redirectToWorkspace(storedRole)
-      }
+      await signInWithGoogle(preferredRole)
     } catch (err: unknown) {
       const code = typeof err === 'object' && err && 'code' in err
         ? String((err as { code?: unknown }).code)
@@ -169,22 +174,21 @@ function AuthForm() {
         console.error('Google Auth Error:', err)
         setAuthNotice(`Google sign-in failed: ${msg}`)
       }
-    } finally {
       setGoogleLoading(false)
     }
   }
 
-  /* ── Role selection after Google sign-in ── */
   const handleRoleSelect = async (selectedRole: 'recruiter' | 'candidate') => {
     setRoleLoading(true)
+    setAuthNotice('')
     try {
       await setUserRole(selectedRole)
       setRoleModalOpen(false)
       setSuccessRole(selectedRole)
       setIsSuccess(true)
       setTimeout(() => router.push(`/${selectedRole}`), 1200)
-    } catch {
-      setAuthNotice('Failed to save your role. Please try again.')
+    } catch (err: any) {
+      setAuthNotice(err?.message || 'Failed to save your role. Please try again.')
       setRoleLoading(false)
     }
   }
@@ -205,7 +209,11 @@ function AuthForm() {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Authentication failed'
-      setAuthNotice(msg)
+      if (msg.includes('auth/invalid-credential')) {
+        setAuthNotice('Incorrect email or password. If you do not have an account, please switch to the Sign Up tab.')
+      } else {
+        setAuthNotice(msg)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -222,7 +230,7 @@ function AuthForm() {
       {/* ── Role Picker Modal ── */}
       <AnimatePresence>
         {shouldShowRoleModal && (
-          <RolePickerModal onSelect={handleRoleSelect} loading={roleLoading} />
+          <RolePickerModal onSelect={handleRoleSelect} loading={roleLoading} notice={authNotice || profileNotice} />
         )}
       </AnimatePresence>
 
@@ -407,7 +415,7 @@ function AuthForm() {
           <div className="flex items-center justify-center gap-4 mt-6 pt-5 border-t border-slate-100">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>SHA-256 signed</span>
+              <span>SHA-256 verified</span>
             </div>
             <div className="w-px h-3 bg-slate-200" />
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">

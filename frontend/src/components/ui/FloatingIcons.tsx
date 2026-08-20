@@ -5,31 +5,29 @@ import {
   FileText,
   Sparkles,
   CheckCircle2,
-  Sliders,
   Cpu,
-  Briefcase,
-  User,
+  ShieldCheck,
+  Award,
+  Compass,
+  Binary,
+  Target,
   Zap,
-  Network,
-  Waypoints,
-  Fingerprint
 } from 'lucide-react'
 
 const iconsList = [
-  FileText,
-  Sparkles,
-  CheckCircle2,
-  Sliders,
+  ShieldCheck,
   Cpu,
-  Briefcase,
-  User,
+  Award,
+  Target,
+  CheckCircle2,
+  Binary,
+  Compass,
   Zap,
-  Network,
-  Waypoints,
-  Fingerprint
+  Sparkles,
+  FileText,
 ]
 
-interface FloatingIconConfig {
+interface FloatingNodeConfig {
   id: number
   Icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
   x: string
@@ -52,10 +50,10 @@ function rounded(value: number, precision = 3) {
   return Number(value.toFixed(precision))
 }
 
-function createConfig(index: number): FloatingIconConfig {
+function createConfig(index: number): FloatingNodeConfig {
   const Icon = iconsList[index % iconsList.length]
-  const xPercent = rounded(seededValue(index + 1) * 100)
-  const yPercent = rounded(seededValue(index + 11) * 100)
+  const xPercent = rounded(seededValue(index * 7 + 1) * 92 + 4)
+  const yPercent = rounded(seededValue(index * 13 + 11) * 88 + 6)
   const xSign = seededValue(index + 21) > 0.5 ? 1 : -1
   const ySign = seededValue(index + 31) > 0.5 ? 1 : -1
   const rotateSign = seededValue(index + 41) > 0.5 ? 1 : -1
@@ -63,32 +61,39 @@ function createConfig(index: number): FloatingIconConfig {
   return {
     id: index,
     Icon,
-    x: `${Math.max(2, Math.min(98, xPercent))}%`,
-    y: `${Math.max(2, Math.min(98, yPercent))}%`,
-    scale: rounded(0.6 + seededValue(index + 51) * 0.5),
-    opacity: rounded(0.15 + seededValue(index + 61) * 0.10),
-    delay: rounded(seededValue(index + 71) * 4),
-    duration: rounded(12 + seededValue(index + 81) * 8),
-    xDrift: [0, rounded(xSign * (20 + seededValue(index + 91) * 30)), 0],
-    yDrift: [0, rounded(ySign * (25 + seededValue(index + 101) * 35)), 0],
-    rotateDrift: [0, rounded(rotateSign * (15 + seededValue(index + 111) * 20)), 0],
+    x: `${Math.max(4, Math.min(94, xPercent))}%`,
+    y: `${Math.max(5, Math.min(92, yPercent))}%`,
+    scale: rounded(0.7 + seededValue(index + 51) * 0.35),
+    opacity: rounded(0.08 + seededValue(index + 61) * 0.12),
+    delay: rounded(seededValue(index + 71) * 6),
+    duration: rounded(16 + seededValue(index + 81) * 12),
+    xDrift: [0, rounded(xSign * (14 + seededValue(index + 91) * 20)), 0],
+    yDrift: [0, rounded(ySign * (18 + seededValue(index + 101) * 24)), 0],
+    rotateDrift: [0, rounded(rotateSign * (10 + seededValue(index + 111) * 14)), 0],
   }
 }
 
-export default function FloatingIcons({ count = 8 }: { count?: number }) {
+export default function FloatingIcons({
+  count = 6,
+  className = '',
+}: {
+  count?: number
+  className?: string
+}) {
   const configs = useMemo(
     () => Array.from({ length: count }).map((_, index) => createConfig(index)),
     [count],
   )
 
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+    <div className={`absolute inset-0 overflow-hidden pointer-events-none z-0 select-none ${className}`}>
       {configs.map((config) => {
         const { Icon } = config
+
         return (
           <div
             key={config.id}
-            className="floating-icon-drift absolute text-accent-primary will-change-transform"
+            className="floating-icon-drift absolute text-slate-400 will-change-transform"
             style={{
               left: config.x,
               top: config.y,
@@ -98,10 +103,10 @@ export default function FloatingIcons({ count = 8 }: { count?: number }) {
               '--float-y': `${config.yDrift[1]}px`,
               '--float-rotate': `${config.rotateDrift[1]}deg`,
               animationDelay: `${config.delay * -1}s`,
-              animationDuration: `${config.duration * 1.35}s`,
+              animationDuration: `${config.duration * 1.3}s`,
             } as React.CSSProperties}
           >
-            <Icon className="w-8 h-8 md:w-12 md:h-12" strokeWidth={1.2} />
+            <Icon className="w-5 h-5 md:w-6 md:h-6 text-slate-500" strokeWidth={1.5} />
           </div>
         )
       })}

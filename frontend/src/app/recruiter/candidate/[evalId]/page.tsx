@@ -72,6 +72,12 @@ export default function CandidateDetailPage() {
   const [loading, setLoading] = useState(true)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
+  // Candidate Status & Integrity State
+  const [candidateStatus, setCandidateStatus] = useState('Screened')
+  const [statusUpdating, setStatusUpdating] = useState(false)
+  const [integrityResult, setIntegrityResult] = useState<{ valid: boolean; sha256: string; status: string } | null>(null)
+  const [verifyingIntegrity, setVerifyingIntegrity] = useState(false)
+
   const fetchDetail = useCallback(async () => {
     setLoading(true)
     try {
@@ -79,6 +85,9 @@ export default function CandidateDetailPage() {
       if (res.ok) {
         const detail = await res.json()
         setData(detail)
+        if (detail.evaluation?.status) {
+          setCandidateStatus(detail.evaluation.status)
+        }
       }
     } catch (e) {
       console.error('Error fetching candidate evaluation details:', e)
@@ -87,12 +96,46 @@ export default function CandidateDetailPage() {
     }
   }, [evalId])
 
+  const verifyIntegrity = useCallback(async () => {
+    setVerifyingIntegrity(true)
+    try {
+      const res = await fetch(`${API_URL}/recruiter/evaluation/${evalId}/integrity`)
+      if (res.ok) {
+        const result = await res.json()
+        setIntegrityResult(result)
+      }
+    } catch {
+      // Handled
+    } finally {
+      setVerifyingIntegrity(false)
+    }
+  }, [evalId])
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    setStatusUpdating(true)
+    try {
+      const res = await fetch(`${API_URL}/recruiter/evaluation/${evalId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (res.ok) {
+        setCandidateStatus(newStatus)
+      }
+    } catch {
+      // Handled
+    } finally {
+      setStatusUpdating(false)
+    }
+  }
+
   useEffect(() => {
     let active = true
     if (evalId) {
       const handle = requestAnimationFrame(() => {
         if (active) {
           fetchDetail()
+          verifyIntegrity()
         }
       })
       return () => {
@@ -100,7 +143,7 @@ export default function CandidateDetailPage() {
         cancelAnimationFrame(handle)
       }
     }
-  }, [evalId, fetchDetail])
+  }, [evalId, fetchDetail, verifyIntegrity])
 
   const copyToClipboard = (text: string, index: number) => {
     navigator.clipboard.writeText(text)
@@ -155,7 +198,7 @@ export default function CandidateDetailPage() {
             </button>
             <div>
               <span className="type-caption text-text-tertiary block">
-                Detailed Candidate Dossier
+                Candidate Evaluation
               </span>
               <h1 className="text-xl font-display font-extrabold text-text-primary tracking-tight">
                 {profile.name || data.candidate.name || 'Unknown Candidate'}
@@ -179,13 +222,13 @@ export default function CandidateDetailPage() {
       </header>
 
       {/* Grid Layout - 3 Columns on desktop */}
-      <main className="flex-1 max-w-7xl mx-auto px-6 py-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="flex-1 max-w-7xl mx-auto px-6 py-8 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 mb-24">
         
         {/* COLUMN 1: CANDIDATE PROFILE (col span 3) */}
         <section className="lg:col-span-3 space-y-6">
           <div className="bg-bg-surface border border-border-subtle rounded-xl p-5 space-y-5">
             <h2 className="type-label text-text-tertiary border-b border-border-subtle pb-2">
-              Dossier Metadata
+              Background
             </h2>
 
             {/* Exp & Email */}
@@ -228,7 +271,7 @@ export default function CandidateDetailPage() {
           {/* Stated Projects */}
           <div className="bg-bg-surface border border-border-subtle rounded-xl p-5 space-y-4">
             <h2 className="type-label text-text-tertiary border-b border-border-subtle pb-2">
-              Extracted Projects
+              Experience
             </h2>
 
             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
@@ -264,7 +307,7 @@ export default function CandidateDetailPage() {
           {/* Scoring Rubric Dimension breakdowns */}
           <div className="bg-bg-surface border border-border-subtle rounded-xl p-5 space-y-5">
             <h2 className="type-label text-text-tertiary border-b border-border-subtle pb-2">
-              Rubric Dimension Breakdown
+              Evaluation Breakdown
             </h2>
 
             <div className="space-y-5">
@@ -359,6 +402,91 @@ export default function CandidateDetailPage() {
         </section>
 
       </main>
+
+      {/* Sticky Action Bar & Real SHA-256 Integrity Fingerprint */}
+      <div className="sticky bottom-0 mt-auto border-t border-slate-200 bg-white/95 backdrop-blur-md py-4 px-6 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Status Workflow Action */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Current Status:</span>
+              <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-violet-50 text-violet-700 border border-violet-200 uppercase">
+                {candidateStatus}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                disabled={statusUpdating || candidateStatus === 'Shortlisted'}
+                onClick={() => handleUpdateStatus('Shortlisted')}
+                className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-xs font-bold rounded-xl text-emerald-800 hover:bg-emerald-100 transition disabled:opacity-40"
+              >
+                {statusUpdating ? 'Updating...' : '✓ Shortlist Candidate'}
+              </button>
+
+              <button
+                disabled={statusUpdating || candidateStatus === 'Interview Scheduled'}
+                onClick={() => handleUpdateStatus('Interview Scheduled')}
+                className="px-3.5 py-1.5 bg-sky-50 border border-sky-200 text-xs font-bold rounded-xl text-sky-800 hover:bg-sky-100 transition disabled:opacity-40"
+              >
+                📅 Schedule Interview
+              </button>
+
+              <button
+                disabled={statusUpdating || candidateStatus === 'Offer Extended'}
+                onClick={() => handleUpdateStatus('Offer Extended')}
+                className="px-3.5 py-1.5 bg-violet-50 border border-violet-200 text-xs font-bold rounded-xl text-violet-800 hover:bg-violet-100 transition disabled:opacity-40"
+              >
+                🎉 Extend Offer
+              </button>
+
+              <button
+                disabled={statusUpdating || candidateStatus === 'Rejected'}
+                onClick={() => handleUpdateStatus('Rejected')}
+                className="px-3.5 py-1.5 bg-slate-50 border border-slate-200 text-xs font-bold rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition disabled:opacity-40"
+              >
+                ✗ Reject
+              </button>
+            </div>
+          </div>
+
+          {/* Real SHA-256 Integrity Verification Badge */}
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                Report Integrity Fingerprint
+              </div>
+              <div className="text-xs font-mono font-bold text-slate-700 truncate max-w-[200px]">
+                {integrityResult?.sha256 ? `${integrityResult.sha256.slice(0, 16)}...` : 'Computing SHA-256...'}
+              </div>
+            </div>
+
+            <button
+              onClick={verifyIntegrity}
+              disabled={verifyingIntegrity}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border shadow-2xs ${
+                integrityResult?.valid
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                  : 'bg-slate-950 text-white border-slate-950 hover:bg-slate-800'
+              }`}
+            >
+              {verifyingIntegrity ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying...
+                </>
+              ) : integrityResult?.valid ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" /> SHA-256 Valid
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5" /> Verify Integrity
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

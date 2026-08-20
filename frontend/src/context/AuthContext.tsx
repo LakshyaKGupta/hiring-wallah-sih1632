@@ -29,7 +29,7 @@ interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
   profileLoading: boolean
-  signInWithGoogle: (preferredRole?: ConcreteUserRole) => Promise<{ isNewUser: boolean; role: UserRole }>
+  signInWithGoogle: (preferredRole?: ConcreteUserRole) => Promise<void>
   signUpWithEmail: (params: { role: ConcreteUserRole; email: string; password: string; displayName?: string }) => Promise<AuthUser>
   signInWithEmail: (email: string, password: string) => Promise<AuthUser>
   signOut: () => Promise<void>
@@ -58,28 +58,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
 
-  async function signInWithGoogle(preferredRole?: ConcreteUserRole): Promise<{ isNewUser: boolean; role: UserRole }> {
+  async function signInWithGoogle(preferredRole?: ConcreteUserRole): Promise<void> {
     assertHiringWallahFirebaseConfig()
 
     const provider = new GoogleAuthProvider()
     provider.setCustomParameters({ prompt: 'select_account' })
+    if (preferredRole) {
+      sessionStorage.setItem('hw_preferred_role', preferredRole)
+    }
+    
+    // Use popup instead of redirect to avoid browser blocking and state loss
     const result = await signInWithPopup(auth, provider)
-    setFirebaseUser(result.user)
-
-    let role: UserRole = null
-    try {
-      role = await fetchRole(result.user)
-    } catch {
-      role = null
+    
+    // Process the login immediately instead of waiting for a redirect
+    if (preferredRole) {
+      sessionStorage.removeItem('hw_preferred_role')
+      try {
+        const currentRole = await fetchRole(result.user)
+        if (!currentRole) {
+          await persistProfile(result.user, preferredRole)
+        }
+      } catch {
+        await persistProfile(result.user, preferredRole)
+      }
     }
-    const isNewUser = !role
-    if (!role && preferredRole) {
-      const profile = await persistProfile(result.user, preferredRole)
-      role = profile.role
-    }
-
-    setUser(toAuthUser(result.user, role))
-    return { isNewUser, role }
   }
 
   async function signUpWithEmail(params: { role: ConcreteUserRole; email: string; password: string; displayName?: string }) {
@@ -141,6 +143,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // getRedirectResult is no longer needed since we use signInWithPopup
+
     const unsub = onAuthStateChanged(auth, async (nextFirebaseUser) => {
       setFirebaseUser(nextFirebaseUser)
       if (!nextFirebaseUser) {

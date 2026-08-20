@@ -30,6 +30,9 @@ First read the global instruction system and active design/technical skills:
   * Cloud DevOps Infrastructure: `/Users/lol/Docs/instructions.ai/skills/devops-infrastructure.md`
   * CI/CD Release Automation: `/Users/lol/Docs/instructions.ai/skills/cicd-pipelines.md`
   * Real-Time State Management: `/Users/lol/Docs/instructions.ai/skills/state-sync.md`
+  * Refero Style Intelligence: `/Users/lol/Docs/instructions.ai/skills/refero-style.md`
+  * Aceternity UI Components: `/Users/lol/Docs/instructions.ai/skills/aceternity-ui.md`
+  * MCP Servers Reference: `/Users/lol/Docs/instructions.ai/skills/mcp-servers.md`
 
 Then read the project files:
 

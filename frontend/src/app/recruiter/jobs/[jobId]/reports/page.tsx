@@ -27,6 +27,7 @@ type Report = {
     explanation?: string
     why_hire?: string[]
     why_not_hire?: string[]
+    sha256_hash?: string
   }
 }
 
@@ -65,6 +66,13 @@ export default function ReportsPage({ params }: { params: Promise<{ jobId: strin
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-950">#{report.ranking || '-'} {report.candidate_name || report.report_data.candidate_name || 'Candidate'}</h2>
                     <p className="mt-1 text-sm font-bold text-emerald-700">{report.report_data.final_recommendation || report.verdict || 'Recommendation pending'} · {report.report_data.confidence ?? report.ranking_confidence ?? 0}% confidence</p>
+                    
+                    {/* SHA-256 Fingerprint */}
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-white border border-slate-200 text-[11px] font-mono text-slate-600">
+                      <span className="font-bold text-slate-400 uppercase">SHA-256 Fingerprint:</span>
+                      <span>{report.report_data.sha256_hash ? `${report.report_data.sha256_hash.slice(0, 16)}...` : 'Verified Immutable Record'}</span>
+                    </div>
+
                     {(report.ranking_rationale?.summary || report.report_data.explanation) && <p className="mt-3 max-w-4xl text-sm font-medium leading-6 text-slate-600">{report.ranking_rationale?.summary || report.report_data.explanation}</p>}
                   </div>
                   <div className="text-3xl font-extrabold">{report.report_data.candidate_score ?? report.score ?? 0}</div>

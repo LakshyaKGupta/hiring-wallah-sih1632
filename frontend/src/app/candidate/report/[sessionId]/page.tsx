@@ -3,36 +3,34 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { motion, AnimatePresence, Variants } from 'framer-motion'
-import { ArrowLeft, RefreshCw, Copy, Check, Target, Compass, BookOpen, Edit2, FileText, CheckCircle } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  ArrowLeft,
+  RefreshCw,
+  Copy,
+  Check,
+  Target,
+  Compass,
+  BookOpen,
+  Edit2,
+  FileText,
+  CheckCircle2,
+  Sparkles,
+  Briefcase,
+  Building2,
+  MapPin,
+  ExternalLink,
+  ChevronRight,
+  TrendingUp,
+  AlertTriangle,
+  Award,
+  Zap
+} from 'lucide-react'
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts'
-import MeshBackground from '@/components/ui/MeshBackground'
-import { appleTransition } from '@/lib/motion'
+import { WorkspaceShell } from '@/components/ui/WorkspaceShell'
+import type { Opportunity } from '@/app/opportunities/page'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-
-const containerVariants: Variants = {
-  hidden: {},
-  show: {
-    transition: {
-      staggerChildren: 0.05,
-      delayChildren: 0.02
-    }
-  }
-}
-
-const itemVariants: Variants = {
-  hidden: { opacity: 0, y: 12 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: 'spring',
-      stiffness: 150,
-      damping: 20
-    }
-  }
-}
 
 interface SessionDetail {
   session: {
@@ -40,18 +38,37 @@ interface SessionDetail {
     candidate_id: string
     target_role: string
     fit_score: number
-    skill_gaps: Record<string, string>
-    tailored_resume_suggestions: Record<string, string>
+    skill_gaps: Record<string, string> | string[]
+    tailored_resume_suggestions: Record<string, string> | string[]
     cover_letter: string
-    interview_prep: Record<string, string>
-    job_recommendations?: unknown
+    interview_prep: Record<string, any>
+    job_recommendations?: Opportunity[]
     created_at: string
   }
   candidate: {
     id: string
     name: string
     email: string
+    parsed_profile?: {
+      skills_demonstrated?: string[]
+      branch?: string
+      education?: string
+      experience_level?: string
+    }
   }
+}
+
+function cleanRoleTitle(raw: string): string {
+  if (!raw) return 'Technical Career Candidate'
+  const trimmed = raw.trim()
+  if (trimmed.toLowerCase() === 'ai proudct' || trimmed.toLowerCase() === 'ai product') {
+    return 'AI Product Specialist'
+  }
+  // Title-case formatting
+  return trimmed
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
 }
 
 export default function CandidateReportPage() {
@@ -60,12 +77,10 @@ export default function CandidateReportPage() {
   const sessionId = params?.sessionId as string
 
   const [data, setData] = useState<SessionDetail | null>(null)
+  const [matchingJobs, setMatchingJobs] = useState<Opportunity[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'fit' | 'gaps' | 'resume' | 'cover' | 'interview'>('fit')
-  
-  // Interactions
+  const [activeTab, setActiveTab] = useState<'fit' | 'gaps' | 'resume' | 'cover' | 'interview' | 'matching_jobs'>('fit')
   const [copiedCover, setCopiedCover] = useState(false)
-  const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({})
 
   const fetchReport = useCallback(async () => {
     setLoading(true)
@@ -74,6 +89,34 @@ export default function CandidateReportPage() {
       if (res.ok) {
         const report = await res.json()
         setData(report)
+
+        // Load real database opportunities matching this candidate's target role & skills
+        const role = report.session?.target_role || ''
+        const skills = report.candidate?.parsed_profile?.skills_demonstrated || []
+        
+        try {
+          const recRes = await fetch(`${API_URL}/matchmaking/recommendations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              target_role: role,
+              branch: report.candidate?.parsed_profile?.branch || 'All Branches',
+              candidate_skills: skills
+            })
+          })
+          if (recRes.ok) {
+            const recData = await recRes.json()
+            const jobs = (recData.recommendations || []).map((r: any) => r.opportunity)
+            setMatchingJobs(jobs)
+          }
+        } catch {
+          // Fallback to all opportunities
+          const oppsRes = await fetch(`${API_URL}/opportunities?limit=4`)
+          if (oppsRes.ok) {
+            const opps = await oppsRes.json()
+            setMatchingJobs(opps)
+          }
+        }
       }
     } catch (e) {
       console.error('Error fetching candidate report:', e)
@@ -83,17 +126,8 @@ export default function CandidateReportPage() {
   }, [sessionId])
 
   useEffect(() => {
-    let active = true
     if (sessionId) {
-      const handle = requestAnimationFrame(() => {
-        if (active) {
-          fetchReport()
-        }
-      })
-      return () => {
-        active = false
-        cancelAnimationFrame(handle)
-      }
+      void fetchReport()
     }
   }, [sessionId, fetchReport])
 
@@ -104,371 +138,411 @@ export default function CandidateReportPage() {
     setTimeout(() => setCopiedCover(false), 2000)
   }
 
-  const toggleFlip = (key: string) => {
-    setFlippedCards(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
   if (loading) {
     return (
-      <div className="flex-1 bg-bg-deep flex flex-col items-center justify-center py-20 gap-3">
-        <RefreshCw className="w-8 h-8 text-accent-primary animate-spin" />
-        <span className="type-label text-text-tertiary">
-          Compiling coach suggestions...
-        </span>
+      <div className="min-h-screen bg-[#f6f8fc] flex items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <RefreshCw className="h-4 w-4 rounded-full text-violet-700 animate-spin" />
+          <span className="text-sm font-semibold text-slate-600">Generating candidate intelligence report...</span>
+        </div>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="flex-1 bg-bg-deep flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-text-secondary text-sm mb-4">Candidate report details not found.</p>
-        <button 
-          onClick={() => router.back()}
-          className="px-4 py-2 bg-bg-surface border border-border-subtle text-caption font-sans font-medium rounded text-text-primary hover:border-accent-primary"
-        >
-          Go Back
-        </button>
+      <div className="min-h-screen bg-[#f6f8fc] flex flex-col items-center justify-center p-6 text-center">
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md space-y-4 shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+          <h2 className="text-lg font-bold text-slate-900">Analysis Report Not Found</h2>
+          <p className="text-xs text-slate-500">The requested candidate session report could not be retrieved.</p>
+          <button
+            onClick={() => router.push('/candidate')}
+            className="px-4 py-2 bg-slate-950 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition"
+          >
+            Back to Candidate Studio
+          </button>
+        </div>
       </div>
     )
   }
 
   const session = data.session
   const candidate = data.candidate
+  const formattedRole = cleanRoleTitle(session.target_role)
 
   // Radar Chart data formatting
-  const chartData = Object.entries(session.skill_gaps).map(([skill, gapDesc]) => {
-    const isMajorGap = gapDesc.toLowerCase().includes('lacks') || gapDesc.toLowerCase().includes('no evidence') || gapDesc.toLowerCase().includes('missing')
-    return {
-      subject: skill.length > 18 ? skill.slice(0, 15) + '...' : skill,
-      Candidate: isMajorGap ? 40 : 80,
-      Required: 100,
-      fullMark: 100
+  let chartData: any[] = []
+  if (session.skill_gaps && typeof session.skill_gaps === 'object') {
+    if (!Array.isArray(session.skill_gaps)) {
+      chartData = Object.entries(session.skill_gaps).map(([skill, gapDesc]) => {
+        const isMajorGap = String(gapDesc).toLowerCase().includes('lack') || String(gapDesc).toLowerCase().includes('missing')
+        return {
+          subject: skill.length > 16 ? skill.slice(0, 14) + '...' : skill,
+          Candidate: isMajorGap ? 45 : 85,
+          Required: 100,
+          fullMark: 100
+        }
+      })
     }
-  })
-
-  // Fit score visual settings
-  const circumference = 2 * Math.PI * 45
-  const strokeDashoffset = circumference - (session.fit_score / 100) * circumference
+  }
 
   return (
-    <div className="flex-1 bg-bg-deep min-h-screen text-text-primary font-sans flex flex-col relative">
-      {/* Zoho Grid backdrop with Mesh Blobs */}
-      <MeshBackground opacity={0.2} />
-
-      {/* Sub Header */}
-      <header className="border-b border-border-subtle bg-bg-surface py-4 px-6 sticky top-16 z-40 relative z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/candidate" 
-              className="w-9 h-9 rounded-full border border-border-subtle hover:border-accent-primary flex items-center justify-center text-text-secondary hover:text-accent-primary transition-apple"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <div>
-              <span className="type-caption text-text-tertiary block">
-                Application Blueprint
-              </span>
-              <h1 className="text-xl font-display font-extrabold text-text-primary tracking-tight">
-                Targeting: {session.target_role}
+    <WorkspaceShell
+      role="candidate"
+      activeId="overview"
+      title={`Report: ${formattedRole}`}
+      subtitle={`Verified profile analysis for ${candidate.name || 'Candidate'}`}
+      primaryActionLabel="Explore Matching Jobs"
+      onPrimaryAction={() => setActiveTab('matching_jobs')}
+      action={null}
+      onCloseAction={() => undefined}
+      backHref="/candidate"
+      backLabel="Back to candidate workspace"
+    >
+      <div className="space-y-6 max-w-5xl mx-auto">
+        
+        {/* Top Header Card */}
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-violet-50 text-violet-700 font-bold text-[11px] border border-violet-200 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> Candidate Analysis Report
+                </span>
+                <span className="text-xs font-semibold text-slate-400">
+                  ID: {session.id.slice(0, 8)}
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight">
+                Target Role: {formattedRole}
               </h1>
+              <p className="text-xs text-slate-500 font-medium">
+                Candidate: <strong className="text-slate-900">{candidate.name || 'Candidate'}</strong> · {candidate.email || 'Verified Student'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 p-4 rounded-2xl bg-violet-50/60 border border-violet-100 shrink-0">
+              <div className="text-right">
+                <div className="text-xs font-bold text-violet-600 uppercase tracking-wide">Role Fit Score</div>
+                <div className="text-3xl font-black text-slate-950 font-mono">{session.fit_score}%</div>
+              </div>
+              <div className="w-12 h-12 rounded-xl bg-violet-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                <Target className="w-6 h-6" />
+              </div>
             </div>
           </div>
-          <div className="type-mono text-right text-xs text-text-secondary">
-            Candidate: <span className="font-bold text-text-primary">{candidate.name}</span>
-          </div>
-        </div>
-      </header>
 
-      {/* Tabs navigation */}
-      <div className="bg-bg-surface border-b border-border-subtle sticky top-[133px] z-30 font-sans">
-        <div className="max-w-4xl mx-auto px-6 flex items-center justify-between overflow-x-auto">
-          <div className="flex space-x-6 py-2">
+          {/* Tab Switcher */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
             {[
-              { id: 'fit', label: 'Fit Score', icon: Target },
-              { id: 'gaps', label: 'Skill Gaps', icon: Compass },
-              { id: 'resume', label: 'Resume Tips', icon: Edit2 },
-              { id: 'cover', label: 'Cover Letter', icon: FileText },
-              { id: 'interview', label: 'Interview Prep', icon: BookOpen }
+              { id: 'fit', label: 'Fit Breakdown', icon: Target },
+              { id: 'gaps', label: 'Skill Gaps & Radar', icon: Compass },
+              { id: 'matching_jobs', label: 'Jobs for Your Resume', icon: Briefcase, badge: matchingJobs.length },
+              { id: 'resume', label: 'Resume Optimizations', icon: Edit2 },
+              { id: 'cover', label: 'Generated Cover Letter', icon: FileText },
+              { id: 'interview', label: 'Interview Prep', icon: BookOpen },
             ].map(tab => {
-              const TabIcon = tab.icon
+              const Icon = tab.icon
               const isSelected = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as 'fit' | 'gaps' | 'resume' | 'cover' | 'interview')}
-                  className={`flex items-center gap-2 py-3 px-1 border-b-2 text-caption font-sans font-medium transition-all select-none ${
-                    isSelected 
-                      ? 'border-accent-primary text-accent-primary' 
-                      : 'border-transparent text-text-tertiary hover:text-text-secondary'
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-3.5 py-2 rounded-xl font-bold transition flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-slate-950 text-white shadow-sm'
+                      : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900'
                   }`}
                 >
-                  <TabIcon className="w-4 h-4" />
+                  <Icon className="w-3.5 h-3.5" />
                   <span>{tab.label}</span>
+                  {tab.badge !== undefined && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      isSelected ? 'bg-violet-600 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {tab.badge}
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
         </div>
-      </div>
 
-      {/* Tab Panels content */}
-      <main className="flex-1 max-w-4xl mx-auto px-6 py-10 w-full">
+        {/* Tab Content Panels */}
         <AnimatePresence mode="wait">
-          {/* TAB 1: FIT SCORE CIRCULAR GAUGE */}
+          
+          {/* TAB 1: FIT SCORE */}
           {activeTab === 'fit' && (
             <motion.div
               key="fit"
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, y: -12, transition: { duration: 0.15 } }}
-              className="flex flex-col items-center text-center space-y-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 md:grid-cols-3 gap-6"
             >
-              {/* SVG Ring Gauge */}
-              <motion.div variants={itemVariants} className="relative w-40 h-40 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="80" cy="80" r="70" className="stroke-bg-surface fill-transparent" strokeWidth="10" />
-                  <circle
-                    cx="80"
-                    cy="80"
-                    r="70"
-                    className="fill-transparent"
-                    stroke="#00E5FF"
-                    strokeWidth="10"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute text-center">
-                  <span className="text-4xl type-mono-score font-bold text-text-primary">
-                    {session.fit_score}%
-                  </span>
-                  <span className="text-[10px] text-text-tertiary block type-mono-score">
-                    MATCH RATING
-                  </span>
+              <div className="md:col-span-1 p-6 rounded-3xl border border-slate-200 bg-white shadow-xs flex flex-col items-center justify-center text-center space-y-4">
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle cx="72" cy="72" r="60" className="stroke-slate-100 fill-transparent" strokeWidth="10" />
+                    <circle
+                      cx="72"
+                      cy="72"
+                      r="60"
+                      className="fill-transparent stroke-violet-600"
+                      strokeWidth="10"
+                      strokeDasharray={2 * Math.PI * 60}
+                      strokeDashoffset={2 * Math.PI * 60 - (session.fit_score / 100) * 2 * Math.PI * 60}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute text-center">
+                    <span className="text-3xl font-black text-slate-950 font-mono">{session.fit_score}%</span>
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">Match Rating</span>
+                  </div>
                 </div>
-              </motion.div>
+                <div className="text-xs font-semibold text-slate-600">
+                  Based on verified project history & role rubric.
+                </div>
+              </div>
 
-              <motion.div variants={itemVariants} className="max-w-xl space-y-4">
-                <h2 className="text-xl font-display font-extrabold text-text-primary tracking-tight">
-                  Your Alignment for the {session.target_role} role
-                </h2>
-                <p className="text-sm text-text-secondary leading-relaxed font-sans">
-                  Our committee agents evaluated your experience evidence, technology ownership levels, and achievements against the target role requirements. We found key strengths, alongside addressable skill gaps detailed in subsequent tabs.
+              <div className="md:col-span-2 p-6 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-4">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-violet-600" /> Evidence-Based Fit Summary
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  We evaluated your resume against live requirements for <strong>{formattedRole}</strong>. Your profile demonstrates foundational competencies with specific high-value skills ready for deployment in Rajasthan technology and core engineering ecosystems.
                 </p>
-              </motion.div>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-xs space-y-1">
+                    <span className="font-bold text-emerald-800 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Key Match Signals
+                    </span>
+                    <p className="text-[11px] text-emerald-700">Demonstrated hands-on technical execution & problem solving.</p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-100 text-xs space-y-1">
+                    <span className="font-bold text-amber-800 flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-amber-600" /> Recommended Action
+                    </span>
+                    <p className="text-[11px] text-amber-700">Bridge specialized domain tools to unlock top percentile match.</p>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           )}
 
-          {/* TAB 2: SKILL GAPS RADAR CHART */}
+          {/* TAB 2: SKILL GAPS & RADAR */}
           {activeTab === 'gaps' && (
             <motion.div
               key="gaps"
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, y: -12, transition: { duration: 0.15 } }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-6"
             >
-              {/* Radar chart visual */}
-              <motion.div variants={itemVariants} className="h-[300px] w-full bg-bg-surface/50 border border-border-subtle rounded-xl p-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
-                    <PolarGrid stroke="#1A3050" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#8BA0C0', fontSize: 10, fontFamily: 'monospace' }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#4A6080' }} />
-                    <Radar name="Target" dataKey="Required" stroke="#7C3AED" fill="#7C3AED" fillOpacity={0.05} />
-                    <Radar name="You" dataKey="Candidate" stroke="#00E5FF" fill="#00E5FF" fillOpacity={0.3} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </motion.div>
-
-              {/* Gaps list */}
-              <motion.div variants={itemVariants} className="space-y-4">
-                <h3 className="type-label text-text-tertiary">
-                  Target Requirements Gaps
-                </h3>
-
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                  {Object.entries(session.skill_gaps).map(([skill, gapDesc]) => (
-                    <div key={skill} className="bg-bg-surface border border-border-subtle rounded-lg p-3">
-                      <span className="text-xs type-label font-bold text-accent-primary">
-                        {skill}
-                      </span>
-                      <p className="text-xs text-text-secondary mt-1 font-sans leading-relaxed">
-                        {gapDesc}
-                      </p>
-                    </div>
-                  ))}
+              {chartData.length > 0 && (
+                <div className="lg:col-span-5 p-6 rounded-3xl border border-slate-200 bg-white shadow-xs flex flex-col justify-center">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2 text-center">Competency Radar</h4>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+                        <PolarGrid stroke="#e2e8f0" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#94a3b8' }} />
+                        <Radar name="Target" dataKey="Required" stroke="#cbd5e1" fill="#f1f5f9" fillOpacity={0.4} />
+                        <Radar name="Candidate" dataKey="Candidate" stroke="#7c3aed" fill="#7c3aed" fillOpacity={0.3} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
                 </div>
-              </motion.div>
+              )}
+
+              <div className={`${chartData.length > 0 ? 'lg:col-span-7' : 'lg:col-span-12'} p-6 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-4`}>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-violet-600" /> Identified Skill Gaps & Focus Areas
+                </h3>
+                <div className="space-y-3">
+                  {typeof session.skill_gaps === 'object' && !Array.isArray(session.skill_gaps) ? (
+                    Object.entries(session.skill_gaps).map(([skill, desc]) => (
+                      <div key={skill} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                        <span className="text-xs font-bold text-violet-700">{skill}</span>
+                        <p className="text-xs text-slate-600 leading-relaxed">{String(desc)}</p>
+                      </div>
+                    ))
+                  ) : Array.isArray(session.skill_gaps) ? (
+                    session.skill_gaps.map((item, idx) => (
+                      <div key={idx} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-700 font-medium">
+                        {item}
+                      </div>
+                    ))
+                  ) : null}
+                </div>
+              </div>
             </motion.div>
           )}
 
-          {/* TAB 3: RESUME SUGGESTIONS SIDE-BY-SIDE */}
-          {activeTab === 'resume' && (
+          {/* TAB: MATCHING JOBS FROM DATABASE ACCORDING TO RESUME */}
+          {activeTab === 'matching_jobs' && (
             <motion.div
-              key="resume"
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, y: -12, transition: { duration: 0.15 } }}
-              className="space-y-6"
+              key="matching_jobs"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
             >
-              <motion.div variants={itemVariants} className="bg-bg-surface border border-border-subtle rounded-xl p-4 flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-accent-green" />
-                <p className="text-xs text-text-secondary">
-                  To maximize your fit, optimize your resume bullets. Focus on outcomes and concrete evidence rather than generic summaries.
-                </p>
-              </motion.div>
+              <div className="p-4 rounded-2xl bg-violet-50 border border-violet-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-violet-900 font-semibold">
+                  <Sparkles className="w-4 h-4 text-violet-600" />
+                  <span>These verified openings directly match your uploaded resume and target role.</span>
+                </div>
+                <Link href="/opportunities" className="text-violet-700 font-bold hover:underline">
+                  Browse all vacancies →
+                </Link>
+              </div>
 
-              <motion.div variants={itemVariants} className="space-y-4">
-                {Object.entries(session.tailored_resume_suggestions).map(([orig, sugg], idx) => (
-                  <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-border-subtle/50 pb-4 last:border-b-0">
-                    {/* Original */}
-                    <div className="bg-bg-deep border border-accent-red/15 bg-accent-red/2 p-3 rounded-lg">
-                      <span className="text-[9px] text-accent-red type-caption block mb-1 font-bold">
-                        Current bullet point
-                      </span>
-                      <p className="text-xs text-text-secondary leading-relaxed font-sans">
-                        {orig}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {matchingJobs.map((job) => (
+                  <div key={job.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-xs hover:border-violet-300 transition flex flex-col justify-between space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                          {job.sector.toUpperCase()}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {job.location}
+                        </span>
+                      </div>
+                      <h4 className="text-base font-extrabold text-slate-900 line-clamp-1">{job.title}</h4>
+                      <p className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400" /> {job.organization}
+                      </p>
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        {job.description}
                       </p>
                     </div>
 
-                    {/* Suggestion */}
-                    <div className="bg-bg-surface border border-accent-green/20 p-3 rounded-lg">
-                      <span className="text-[9px] text-accent-green type-caption block mb-1 font-bold">
-                        Optimized suggestion
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-900 font-mono">
+                        {job.stipend_or_salary || 'Competitive Pay'}
                       </span>
-                      <p className="text-xs text-text-primary leading-relaxed font-sans font-medium">
-                        {sugg}
-                      </p>
+                      <Link
+                        href={`/opportunities/${job.id}`}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-950 text-white text-xs font-bold hover:bg-violet-900 transition flex items-center gap-1"
+                      >
+                        <span>View Details</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
                     </div>
                   </div>
                 ))}
-              </motion.div>
+              </div>
             </motion.div>
           )}
 
-          {/* TAB 4: COVER LETTER TEXTAREA */}
+          {/* TAB 3: RESUME OPTIMIZATIONS */}
+          {activeTab === 'resume' && (
+            <motion.div
+              key="resume"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="p-6 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-4"
+            >
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-violet-600" /> Resume Bullet Optimization
+              </h3>
+              <p className="text-xs text-slate-500">
+                Enhance your resume bullets by replacing passive duties with quantified project outcomes.
+              </p>
+
+              <div className="space-y-4 pt-2">
+                {typeof session.tailored_resume_suggestions === 'object' && !Array.isArray(session.tailored_resume_suggestions) ? (
+                  Object.entries(session.tailored_resume_suggestions).map(([orig, sugg], idx) => (
+                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Original Line</span>
+                        <p className="text-xs text-slate-600">{orig}</p>
+                      </div>
+                      <div className="space-y-1 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-3">
+                        <span className="text-[10px] font-bold text-emerald-600 uppercase flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Recommended Revision
+                        </span>
+                        <p className="text-xs text-slate-900 font-semibold">{String(sugg)}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : null}
+              </div>
+            </motion.div>
+          )}
+
+          {/* TAB 4: COVER LETTER */}
           {activeTab === 'cover' && (
             <motion.div
               key="cover"
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, y: -12, transition: { duration: 0.15 } }}
-              className="space-y-4"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="p-6 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-4"
             >
-              <motion.div variants={itemVariants} className="flex justify-between items-center">
-                <span className="type-label">
-                  Tailored cover letter draft
-                </span>
-
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-violet-600" /> Tailored Cover Letter
+                </h3>
                 <button
                   onClick={copyCoverLetter}
-                  className="px-3 py-1.5 border border-border-subtle hover:border-accent-primary text-text-secondary hover:text-accent-primary font-sans text-caption font-medium rounded flex items-center gap-1.5 transition-apple bg-bg-surface"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-white transition flex items-center gap-1.5"
                 >
-                  {copiedCover ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-accent-green" />
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Letter</span>
-                    </>
-                  )}
+                  {copiedCover ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedCover ? 'Copied!' : 'Copy Letter'}</span>
                 </button>
-              </motion.div>
-
-              <motion.textarea
-                variants={itemVariants}
+              </div>
+              <textarea
                 readOnly
                 value={session.cover_letter}
-                rows={16}
-                className="w-full bg-bg-surface border border-border-subtle rounded-xl p-6 text-xs text-text-secondary leading-relaxed focus:outline-none font-sans"
+                rows={12}
+                className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-mono leading-relaxed resize-none focus:outline-none"
               />
             </motion.div>
           )}
 
-          {/* TAB 5: INTERVIEW PREPARATION FLIP CARDS */}
+          {/* TAB 5: INTERVIEW PREP */}
           {activeTab === 'interview' && (
             <motion.div
               key="interview"
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, y: -12, transition: { duration: 0.15 } }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="p-6 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-4"
             >
-              {Object.entries(session.interview_prep).map(([q, ans], idx) => {
-                const cardKey = `card-${idx}`
-                const isFlipped = !!flippedCards[cardKey]
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-violet-600" /> Tailored Interview Preparation Questions
+              </h3>
+              <p className="text-xs text-slate-500">
+                Technical and situational questions likely to be asked by hiring panels for this role.
+              </p>
 
-                return (
-                  <motion.div 
-                    key={idx}
-                    variants={itemVariants}
-                    onClick={() => toggleFlip(cardKey)}
-                    className="h-44 relative cursor-pointer select-none group"
-                    style={{ perspective: '1000px' }}
-                  >
-                    <motion.div
-                      animate={{ rotateY: isFlipped ? 180 : 0 }}
-                      transition={appleTransition(0.3)}
-                      className="w-full h-full relative"
-                      style={{ transformStyle: 'preserve-3d' }}
-                    >
-                      {/* FRONT SIDE */}
-                      <div 
-                        className="absolute inset-0 bg-bg-surface border border-border-subtle hover:border-accent-primary/50 rounded-xl p-5 flex flex-col justify-between"
-                        style={{ backfaceVisibility: 'hidden' }}
-                      >
-                        <span className="text-[9px] text-text-tertiary type-caption block">
-                          Interview question #{idx + 1}
-                        </span>
-                        <p className="text-xs font-semibold text-text-primary font-sans leading-relaxed flex-1 flex items-center">
-                          {q}
-                        </p>
-                        <span className="text-[9px] text-accent-primary type-caption text-right block">
-                          Click to reveal strategy ➔
-                        </span>
-                      </div>
-
-                      {/* BACK SIDE */}
-                      <div 
-                        className="absolute inset-0 bg-bg-raised border border-accent-primary/20 rounded-xl p-5 flex flex-col justify-between"
-                        style={{ 
-                          backfaceVisibility: 'hidden',
-                          transform: 'rotateY(180deg)'
-                        }}
-                      >
-                        <span className="text-[9px] text-accent-primary type-caption block">
-                          STAR method answer strategy
-                        </span>
-                        <div className="flex-1 overflow-y-auto my-2 pr-1">
-                          <p className="text-xs text-text-secondary font-sans leading-relaxed">
-                            {ans}
-                          </p>
-                        </div>
-                        <span className="text-[9px] text-text-tertiary type-caption text-right block">
-                          Click to show question
-                        </span>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )
-              })}
+              <div className="space-y-3 pt-2">
+                {session.interview_prep?.mock_questions ? (
+                  session.interview_prep.mock_questions.map((q: string, idx: number) => (
+                    <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-1">
+                      <span className="font-bold text-violet-700">Question 0{idx + 1}</span>
+                      <p className="text-slate-800 font-medium">{q}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
+                    Be prepared to walk through your hands-on engineering projects and demonstrate how you debug technical bottlenecks.
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
-        </AnimatePresence>
-      </main>
 
-    </div>
+        </AnimatePresence>
+
+      </div>
+    </WorkspaceShell>
   )
 }

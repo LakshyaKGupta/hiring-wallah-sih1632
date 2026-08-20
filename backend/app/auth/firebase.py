@@ -2,7 +2,7 @@ import json
 import logging
 import time
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import jwt
 from fastapi import Header, HTTPException, status
@@ -157,3 +157,16 @@ async def require_firebase_user(authorization: str = Header(default="")) -> Dict
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Firebase token for Hiring Wallah. Sign out, refresh, and sign in again.",
         ) from exc
+
+
+async def optional_firebase_user(authorization: str = Header(default="")) -> Optional[Dict[str, Any]]:
+    if not authorization.startswith("Bearer "):
+        return None
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        return None
+    try:
+        return verify_firebase_token(token)
+    except Exception:
+        return None
+
