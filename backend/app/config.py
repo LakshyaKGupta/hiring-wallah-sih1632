@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     
     # Allow local development fallback when Neon DATABASE_URL is empty.
     DB_FALLBACK_SQLITE: bool = True
-    SQLITE_DB_PATH: str = "hiring_wallah.db"
+    
+    # Use /tmp/ on Vercel since the root filesystem is read-only
+    SQLITE_DB_PATH: str = "/tmp/hiring_wallah.db" if os.environ.get("VERCEL") else "hiring_wallah.db"
 
     @property
     def cors_origins_list(self) -> List[str]:
