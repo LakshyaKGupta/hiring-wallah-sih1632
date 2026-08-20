@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     DB_FALLBACK_SQLITE: bool = True
     
     # Use /tmp/ on Vercel since the root filesystem is read-only
-    SQLITE_DB_PATH: str = "/tmp/hiring_wallah.db" if os.environ.get("VERCEL") else "hiring_wallah.db"
+    SQLITE_DB_PATH: str = "/tmp/hiring_wallah.db" if os.environ.get("VERCEL_URL") or os.environ.get("VERCEL_REGION") or os.environ.get("AWS_REGION") or os.environ.get("VERCEL") else "hiring_wallah.db"
 
     @property
     def cors_origins_list(self) -> List[str]:
