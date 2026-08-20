@@ -1,6 +1,11 @@
 import type { User as FirebaseUser } from 'firebase/auth'
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL !== undefined
+    ? process.env.NEXT_PUBLIC_API_URL
+    : typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+    ? ''
+    : 'http://localhost:8000'
 
 export async function apiFetch<T>(
   path: string,
@@ -13,13 +18,37 @@ export async function apiFetch<T>(
   }
 
   if (firebaseUser) {
-    headers.set('Authorization', `Bearer ${await firebaseUser.getIdToken()}`)
+    try {
+      headers.set('Authorization', `Bearer ${await firebaseUser.getIdToken()}`)
+    } catch {
+      // Non-blocking token retrieval
+    }
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  })
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  const targetUrl = API_URL ? `${API_URL}${cleanPath}` : cleanPath
+
+  let response: Response
+  try {
+    response = await fetch(targetUrl, {
+      ...options,
+      headers,
+    })
+  } catch (err: any) {
+    // If external URL failed in browser, retry with relative path fallback
+    if (API_URL && typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+      try {
+        response = await fetch(cleanPath, {
+          ...options,
+          headers,
+        })
+      } catch {
+        throw new Error('Unable to connect to Hiring Wallah services. Please check your connection.')
+      }
+    } else {
+      throw new Error(`Connection error (${err.message || 'Failed to fetch'}). Please ensure backend services are active.`)
+    }
+  }
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`
@@ -27,7 +56,7 @@ export async function apiFetch<T>(
       const payload = await response.json()
       message = payload.detail || payload.message || message
     } catch {
-      // Keep the HTTP status message.
+      // Keep HTTP status message
     }
     throw new Error(message)
   }

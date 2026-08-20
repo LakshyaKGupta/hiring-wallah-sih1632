@@ -36,3 +36,4 @@ site-packages/
 # Database files
 *.db
 *.sqlite
+.vercel
