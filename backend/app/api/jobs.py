@@ -91,45 +91,42 @@ async def upload_job_resumes_endpoint(
     if invalid:
         raise HTTPException(status_code=400, detail=f"Unsupported files: {', '.join(invalid)}")
 
-    if not settings.GEMINI_API_KEY:
-        parsed = []
-        for file in files:
-            content = await file.read()
-            filename = file.filename or "resume.txt"
-            text = parse_resume(content, filename)
-            candidate = await db.create_candidate(
-                name=filename.rsplit(".", 1)[0],
-                email="",
-                parsed_profile={"source": "resume_upload", "filename": filename},
-                raw_resume_text=text,
-            )
-            resume = await db.create_resume(
-                job_id=job_id,
-                candidate_id=candidate["id"],
-                file_name=filename,
-                file_type=filename.rsplit(".", 1)[-1].lower(),
-                raw_text=text,
-                parse_status="parsed" if text else "failed",
-                error_message=None if text else "Unable to extract resume text.",
-            )
-            parsed.append({"candidate": candidate, "resume": resume})
-        return {
-            "parsed": parsed,
-            "results": [],
-            "evaluation_available": False,
-            "message": "Evaluation unavailable. Configure AI provider.",
-        }
-
-    resumes_data = []
+    parsed = []
     for file in files:
         content = await file.read()
-        resumes_data.append((content, file.filename or "resume.pdf"))
-    results = await orchestrator.evaluate_multiple_candidates(job_id, resumes_data)
+        filename = file.filename or "resume.txt"
+        text = parse_resume(content, filename)
+        if not text:
+            continue
+            
+        candidate = await db.create_candidate(
+            name=filename.rsplit(".", 1)[0],
+            email="",
+            parsed_profile={"source": "resume_upload", "filename": filename},
+            raw_resume_text=text,
+        )
+        resume = await db.create_resume(
+            job_id=job_id,
+            candidate_id=candidate["id"],
+            file_name=filename,
+            file_type=filename.rsplit(".", 1)[-1].lower(),
+            raw_text=text,
+            parse_status="parsed",
+        )
+        parsed.append({"candidate": candidate, "resume": resume})
+        
+        # Queue the resume for evaluation
+        if settings.GEMINI_API_KEY:
+            await db.create_agent_task('resume_uploaded', {
+                'job_id': job_id,
+                'resume_id': resume['id']
+            })
+
     return {
-        "parsed": await db.get_job_resumes(job_id),
-        "results": results,
-        "evaluation_available": True,
-        "message": "Evaluation completed.",
+        "parsed": parsed,
+        "results": [],
+        "evaluation_available": bool(settings.GEMINI_API_KEY),
+        "message": f"Queued {len(parsed)} resumes for evaluation." if settings.GEMINI_API_KEY else "Evaluation unavailable. Configure AI provider.",
     }
 
 
