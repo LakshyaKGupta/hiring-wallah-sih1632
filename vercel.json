@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "services": {
+    "frontend": {
+      "framework": "nextjs",
+      "rootDirectory": "frontend"
+    }
+  }
+}
